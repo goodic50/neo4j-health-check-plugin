@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import org.junit.Before;
 import org.junit.Test;
+import org.neo4j.dbms.api.DatabaseManagementService;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
@@ -20,6 +21,8 @@ import java.util.HashMap;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -52,6 +55,8 @@ public class HealthResourceTest {
 
     private final ObjectMapper mapper;
 
+    private DatabaseManagementService dbms;
+
     private GraphDatabaseService service;
 
     private Transaction transaction;
@@ -70,53 +75,43 @@ public class HealthResourceTest {
         this.transaction = mock(Transaction.class);
         this.service = mock(GraphDatabaseService.class);
         when(this.service.beginTx()).thenReturn(transaction);
-        this.healthCheckResource = new HealthResource(service);
+        this.dbms = mock(DatabaseManagementService.class);
+        when(this.dbms.database(anyString())).thenReturn(service);
+        this.healthCheckResource = new HealthResource(dbms);
     }
 
     @Test
     public void serviceUp() throws Exception {
-        HashMap<String, Object> resultMap = new HashMap<>();
-        resultMap.put("count", 1L);
-
-        Result result = mock(Result.class);
-        when(result.next()).thenReturn(resultMap);
-
-        when(service.execute(anyString())).thenReturn(result);
+        when(service.executeTransactionally(anyString(), anyMap(), any())).thenReturn(1L);
         when(service.isAvailable(1000)).thenReturn(true);
 
-        Response response = healthCheckResource.health();
+        Response response = healthCheckResource.health("neo4j");
         assertThat(response.getStatus(), is(200));
         Health health = mapper.readValue(((byte[]) response.getEntity()), Health.class);
 
         assertThat(health.getStatus().getCode(), is(HealthStatusCode.UP));
-        assertThat(health.getDetails().get("description"), is("Neo4j health check was success."));
+        assertThat(health.getDetails().get("description"), is("Neo4j health check was successful."));
     }
 
     @Test
     public void outOfService() throws Exception {
-        HashMap<String, Object> resultMap = new HashMap<>();
-        resultMap.put("count", 0L);
-
-        Result result = mock(Result.class);
-        when(result.next()).thenReturn(resultMap);
-
-        when(service.execute(anyString())).thenReturn(result);
+        when(service.executeTransactionally(anyString(), anyMap(), any())).thenReturn(0L);
         when(service.isAvailable(1000)).thenReturn(true);
 
-        Response response = healthCheckResource.health();
+        Response response = healthCheckResource.health("neo4j");
         assertThat(response.getStatus(), is(200));
         Health health = mapper.readValue(((byte[]) response.getEntity()), Health.class);
 
         assertThat(health.getStatus().getCode(), is(HealthStatusCode.OUT_OF_SERVICE));
         assertThat(health.getDetails().size(), is(1));
-        assertThat(health.getDetails().get("description"), is("Neo4j has no available node!"));
+        assertThat(health.getDetails().get("description"), is("Neo4j has no available nodes!"));
     }
 
     @Test
     public void down() throws Exception {
         when(service.isAvailable(1000)).thenReturn(false);
 
-        Response response = healthCheckResource.health();
+        Response response = healthCheckResource.health("neo4j");
         assertThat(response.getStatus(), is(200));
         Health health = mapper.readValue(((byte[]) response.getEntity()), Health.class);
 
@@ -129,7 +124,7 @@ public class HealthResourceTest {
     public void exception() throws Exception {
         when(service.isAvailable(1000)).thenThrow(new NullPointerException("null"));
 
-        Response response = healthCheckResource.health();
+        Response response = healthCheckResource.health("neo4j");
         assertThat(response.getStatus(), is(200));
         Health health = mapper.readValue(((byte[]) response.getEntity()), Health.class);
 

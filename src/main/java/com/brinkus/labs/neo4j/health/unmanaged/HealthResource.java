@@ -22,11 +22,16 @@ import com.brinkus.labs.neo4j.health.type.Health;
 import com.brinkus.labs.neo4j.health.type.HealthStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.neo4j.dbms.api.DatabaseManagementService;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
+import org.neo4j.graphdb.ResultTransformer;
+
+import java.util.Collections;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
@@ -38,16 +43,17 @@ import javax.ws.rs.core.Response;
 @Path("/health")
 public class HealthResource {
 
-    private static final int TIMEOUT = 1000;
+    private static final long TIMEOUT = 1000L;
 
     private static final String PING_CYPHER = "MATCH (n) RETURN count(*) as count";
 
-    private final GraphDatabaseService service;
-
     private final ObjectMapper mapper;
 
-    public HealthResource(@Context GraphDatabaseService service) {
-        this.service = service;
+    private final DatabaseManagementService dbms;
+
+    public HealthResource(@Context DatabaseManagementService dbms) {
+        assert(dbms != null);
+        this.dbms = dbms;
         this.mapper = new ObjectMapper();
     }
 
@@ -60,9 +66,10 @@ public class HealthResource {
      *         if an error occurred during the entity serialization.
      */
     @GET
+    @Path("/{dbName}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response health() throws JsonProcessingException {
-        Health health = healthCheck();
+    public Response health(@PathParam("dbName") final String dbName) throws JsonProcessingException {
+        Health health = healthCheck(dbms.database(dbName));
         byte[] entity = mapper.writeValueAsBytes(health);
         return Response.ok()
                 .type(MediaType.APPLICATION_JSON_TYPE)
@@ -70,33 +77,40 @@ public class HealthResource {
                 .build();
     }
 
-    private Health healthCheck() {
+    private Health healthCheck(GraphDatabaseService service) {
         try {
+            assert(service != null);
+
             if (!service.isAvailable(TIMEOUT)) {
                 return new Health.Builder().down()
                         .withDetail("description", "Neo4j health check result was invalid!")
                         .build();
             }
 
-            Result result = service.execute(PING_CYPHER);
-            Long count = (Long) result.next().get("count");
+            Long count = service.executeTransactionally(PING_CYPHER, Collections.emptyMap(), new CountResultTransformer());
+            assert(count != null);
 
             if (count == 0) {
                 return new Health.Builder().outOfService()
-                        .withDetail("description", "Neo4j has no available node!")
+                        .withDetail("description", "Neo4j has no available nodes!")
                         .build();
             }
 
             return new Health.Builder().up()
-                    .withDetail("description", "Neo4j health check was success.")
+                    .withDetail("description", "Neo4j health check was successful.")
                     .build();
         } catch (Exception e) {
             return new Health.Builder().outOfService()
                     .withDetail("description", "Neo4j health check failed!")
                     .withException(e)
                     .build();
-
         }
     }
 
+    private static class CountResultTransformer implements ResultTransformer<Long> {
+        @Override
+        public Long apply(Result result) {
+            return (Long) result.next().get("count");
+        }
+    }
 }
