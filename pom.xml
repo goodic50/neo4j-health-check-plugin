@@ -12,7 +12,7 @@
 
     <groupId>com.brinkus.labs</groupId>
     <artifactId>neo4j-health-check-plugin</artifactId>
-    <version>1.1.0</version>
+    <version>4.1.0</version>
     <packaging>jar</packaging>
 
     <name>neo4j-health-check-plugin</name>

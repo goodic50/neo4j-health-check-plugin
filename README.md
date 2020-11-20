@@ -2,7 +2,9 @@
 
 ## Neo4j version 4.x
 
-The target database name needs to be specified as a path parameter e.g. /labs/health/neo4j
+The target database name needs to be specified as a path parameter e.g. */labs/health/neo4j*
+
+Increased the major-minor version numbering to reflect the Neo4j version and follow the APOC scheme. 
 
 ## Query result
 
