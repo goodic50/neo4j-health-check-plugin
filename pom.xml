@@ -12,7 +12,7 @@
 
     <groupId>com.brinkus.labs</groupId>
     <artifactId>neo4j-health-check-plugin</artifactId>
-    <version>4.1.0</version>
+    <version>4.2.0</version>
     <packaging>jar</packaging>
 
     <name>neo4j-health-check-plugin</name>
@@ -63,7 +63,7 @@
         <jackson.version>2.9.10.4</jackson.version>
         <junit.version>4.12</junit.version>
         <mockito.version>1.10.19</mockito.version>
-        <neo4j.version>4.1.4</neo4j.version>
+        <neo4j.version>4.2.3</neo4j.version>
         <slf4j.version>1.7.21</slf4j.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
     </properties>
